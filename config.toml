@@ -1,0 +1,9 @@
+[twitter]
+cookies = { }
+[telegram]
+token = "pls enter your bot token here"
+admin = ["pls enter your admin id here"]
+[telegram.group.default-permission]
+review = false
+achieve = false
+review_pass_percent = { "type" = "literal", "literal" = [0.25, 0.5, 0.75, 1], "value" = 0.5 }
