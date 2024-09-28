@@ -33,7 +33,7 @@ from tinydb import Query
 from src.db import DB
 from src.telegram.routes.post import ReviewThread
 from src.telegram.routes.rss import RSS
-
+from loguru import logger
 
 def _parser(url):
     c = Client(headers={
@@ -41,7 +41,7 @@ def _parser(url):
     r = c.get(url,timeout=10)
     return parse(r)
 
-
+@logger.catch
 async def get_rss(bot: AsyncTeleBot):
     db_rss = DB()["rss"]
     db_rss_dedup = DB()["rss_dedup"]

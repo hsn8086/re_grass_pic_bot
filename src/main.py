@@ -66,6 +66,7 @@ async def main():
                             description="A bot that posts grass pictures to Twitter.",
                             epilog="Made by hsn8086.")
     parser.add_argument("-c", "--config", help="The path to the config file.", type=str, default="config.toml")
+    parser.add_argument("-d", "--debug", help="Enable debug mode.", action="store_true")
     if (p := Path("temp")).exists():
         shutil.rmtree(p)
     config_path = Path(parser.parse_args().config)
@@ -107,7 +108,11 @@ async def main():
 
     add_handler(bot.message_handler, add_rss_source, commands=["add_rss_source"])
     #await get_rss(bot)
-    schedule.every(30).minutes.do(lambda: asyncio.create_task(get_rss(bot)))
+    if parser.parse_args().debug:
+        update_time = 1
+    else:
+        update_time = 30
+    schedule.every(update_time).minutes.do(lambda: asyncio.create_task(get_rss(bot)))
 
     async def schedule_runner():
         while True:
