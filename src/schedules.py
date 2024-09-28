@@ -25,21 +25,24 @@
 """
 import re
 
+import httpx
 from feedparser import parse
 from httpx import Client
+from loguru import logger
 from telebot.async_telebot import AsyncTeleBot
 from tinydb import Query
 
 from src.db import DB
 from src.telegram.routes.post import ReviewThread
 from src.telegram.routes.rss import RSS
-from loguru import logger
+
 
 def _parser(url):
     c = Client(headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"})
-    r = c.get(url,timeout=10)
+    r = c.get(url, timeout=10)
     return parse(r)
+
 
 @logger.catch
 async def get_rss(bot: AsyncTeleBot):
@@ -50,7 +53,10 @@ async def get_rss(bot: AsyncTeleBot):
     for raw_rss in db_rss.all():
         rss = RSS(**raw_rss)
         # get rss data
-        rss_data = _parser(rss.rss_url)
+        try:
+            rss_data = _parser(rss.rss_url)
+        except httpx.ReadTimeout:
+            continue
         # regex
         urls = re.findall(rss.url_regex, str(rss_data))
         # check if url is already in db

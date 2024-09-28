@@ -86,6 +86,7 @@ class ReviewMsg(BaseModel):
 
 from ...inline_btn_mgr import ibm
 from pydantic import Field
+import telebot.asyncio_helper
 
 
 class ReviewThread(BaseModel):
@@ -98,16 +99,19 @@ class ReviewThread(BaseModel):
     btns: list[InlineButton] = []
 
     async def display(self, bot: AsyncTeleBot, group_id: int):
-        for i in self.images:
-            message = await bot.send_photo(group_id, i)
-            self.msgs.append(ReviewMsg(group_id=group_id, message_id=message.message_id, type="img"))
-        message = await bot.send_message(group_id, f"0% | Approve: 0\n0% | Reject: 0")
-        self.msgs.append(ReviewMsg(group_id=group_id, message_id=message.message_id, type="review_info"))
-        message = await bot.send_message(
-            chat_id=group_id,
-            text=f"Description: {self.description}\nPoster: @{self.poster}\nTime: {time.strftime('%Y-%m-%d %H:%M:%S')}",
-            reply_markup=ibm.create_markup(geb_review_btn(self.post_id)))
-        self.msgs.append(ReviewMsg(group_id=group_id, message_id=message.message_id, type="meta"))
+        try:
+            for i in self.images:
+                message = await bot.send_photo(group_id, i)
+                self.msgs.append(ReviewMsg(group_id=group_id, message_id=message.message_id, type="img"))
+            message = await bot.send_message(group_id, f"0% | Approve: 0\n0% | Reject: 0")
+            self.msgs.append(ReviewMsg(group_id=group_id, message_id=message.message_id, type="review_info"))
+            message = await bot.send_message(
+                chat_id=group_id,
+                text=f"Description: {self.description}\nPoster: @{self.poster}\nTime: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+                reply_markup=ibm.create_markup(geb_review_btn(self.post_id)))
+            self.msgs.append(ReviewMsg(group_id=group_id, message_id=message.message_id, type="meta"))
+        except telebot.asyncio_helper.ApiTelegramException:
+            await self.delete(bot)
 
     async def change_review_info(self, bot: AsyncTeleBot, group_id: int, uname: str,
                                  status: Literal["approve", "reject"], *, threshold: float | None = None):
@@ -132,7 +136,7 @@ class ReviewThread(BaseModel):
             if m.group_id == group_id and m.type == "review_info":
                 count_of_approve = len(self.review_count[group_id]["approve"])
                 count_of_reject = len(self.review_count[group_id]["reject"])
-                member_count = (await bot.get_chat_member_count(group_id))-1
+                member_count = (await bot.get_chat_member_count(group_id)) - 1
                 at_text = "" if threshold is None else f"/{threshold * 100}%"
                 rt_text = "" if threshold is None else f"/{(1 - threshold) * 100}%"
                 await bot.edit_message_text(
@@ -344,15 +348,19 @@ async def post_review_callback(bot: AsyncTeleBot, call: CallbackQuery):
             else:
                 c = httpx.Client(headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"})
-                ba = c.get(i).read()
+                resp=c.get(i)
+                if resp.status_code!=200:
+                    break
+                ba = resp.read()
             image = Image.open(BytesIO(ba))
             image.thumbnail((1024, 1024))
             fp = tmp_dir / (uuid.uuid4().hex + ".jpg")
             image.save(fp, quality=80)
             file_paths.append(fp)
+        else:
+            from ...twi import account
+            account.tweet(rt.description, media=[{"media": i} for i in file_paths])
 
-        from ...twi import account
-        account.tweet(rt.description, media=[{"media": i} for i in file_paths])
 
     if count_of_approve / member_count >= threshold or count_of_reject / member_count > 1 - threshold:
         await rt.delete(bot)
